@@ -24,7 +24,10 @@ namespace CollisionCheck
             int triangleCount = triangleIndices.Length / 3;
 
             // Working list of triangle indices (0..triangleCount-1 into the ORIGINAL triangle
-            // array) that gets reordered in place as the tree is built.
+            // array) that gets reordered in place as the tree is built. This doubles as the
+            // reordered->original map we hand back in BvhTree.OriginalTriangleIndex once the
+            // build settles: order[t] ends up holding the original triangle index that lives
+            // at final/reordered slot t.
             var order = new int[triangleCount];
             var centroids = new float3[triangleCount];
             var bounds = new Aabb[triangleCount];
@@ -45,18 +48,20 @@ namespace CollisionCheck
             // Expand the final triangle order (indices into the ORIGINAL triangle array) into
             // the flat vertex-index buffer leaves actually reference at query time.
             var reorderedTriangleIndices = new NativeArray<int>(triangleCount * 3, allocator);
+            var originalTriangleIndex = new NativeArray<int>(triangleCount, allocator);
             for (int t = 0; t < triangleCount; t++)
             {
                 int srcTri = order[t];
                 reorderedTriangleIndices[t * 3 + 0] = triangleIndices[srcTri * 3 + 0];
                 reorderedTriangleIndices[t * 3 + 1] = triangleIndices[srcTri * 3 + 1];
                 reorderedTriangleIndices[t * 3 + 2] = triangleIndices[srcTri * 3 + 2];
+                originalTriangleIndex[t] = srcTri;
             }
 
             var nodeArray = new NativeArray<BvhNode>(nodes.Count, allocator);
             for (int i = 0; i < nodes.Count; i++) nodeArray[i] = nodes[i];
 
-            return new BvhTree(nodeArray, reorderedTriangleIndices);
+            return new BvhTree(nodeArray, reorderedTriangleIndices, originalTriangleIndex);
         }
 
         // Returns the index of the node just created; children (if any) are appended

@@ -17,12 +17,22 @@ namespace CollisionCheck
         // reordered during the build so each leaf's triangles are contiguous.
         public NativeArray<int> TriangleIndices;
 
+        // OriginalTriangleIndex[reorderedTri] = the triangle's index in the ORIGINAL mesh
+        // (i.e. the order the Mesh asset's own triangle list -- and therefore SV_PrimitiveID
+        // at draw time -- uses). BvhBuilder reorders triangles into leaf-contiguous runs for
+        // traversal, but never touches the actual Mesh's triangle buffer, so anything that
+        // needs to go back from "which triangle did the narrow phase flag" (a reordered index)
+        // to "which triangle is that on screen" (an original index) needs this map. Used by
+        // ProbeTriangleClearanceJob to build the per-triangle highlight buffer.
+        public NativeArray<int> OriginalTriangleIndex;
+
         public int RootIndex => 0;
 
-        public BvhTree(NativeArray<BvhNode> nodes, NativeArray<int> triangleIndices)
+        public BvhTree(NativeArray<BvhNode> nodes, NativeArray<int> triangleIndices, NativeArray<int> originalTriangleIndex)
         {
             Nodes = nodes;
             TriangleIndices = triangleIndices;
+            OriginalTriangleIndex = originalTriangleIndex;
         }
 
         public bool IsCreated => Nodes.IsCreated;
@@ -31,6 +41,7 @@ namespace CollisionCheck
         {
             if (Nodes.IsCreated) Nodes.Dispose();
             if (TriangleIndices.IsCreated) TriangleIndices.Dispose();
+            if (OriginalTriangleIndex.IsCreated) OriginalTriangleIndex.Dispose();
         }
     }
 }

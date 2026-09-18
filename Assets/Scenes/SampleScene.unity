@@ -150,6 +150,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: af839cd720cebdb44a76f100471c15e4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CollisionCheck.ClearanceFeedbackController
+  _probe: {fileID: 0}
+  _target: {fileID: 0}
   SafeClearance: 0.005
   WarningClearance: 0.001
   SafeColor: {r: 0, g: 1, b: 0, a: 1}
@@ -524,7 +526,7 @@ MonoBehaviour:
   _target: {fileID: 1775531697}
   _probeRoot: {fileID: 2029443650}
   _targetRoot: {fileID: 1775531696}
-  _fallbackMaterial: {fileID: 2100000, guid: 15e8c305ad2c7d845947112db9a887fc, type: 2}
+  _fallbackMaterial: {fileID: 2100000, guid: 3e4dc60d61e1a0147b71494ed657af1d, type: 2}
 --- !u!4 &471966280
 Transform:
   m_ObjectHideFlags: 0
@@ -808,6 +810,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: af839cd720cebdb44a76f100471c15e4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CollisionCheck.ClearanceFeedbackController
+  _probe: {fileID: 2029443651}
+  _target: {fileID: 1775531697}
   SafeClearance: 0.005
   WarningClearance: 0.001
   SafeColor: {r: 0, g: 1, b: 0, a: 1}

@@ -7,13 +7,16 @@ namespace CollisionCheck
 {
     /// <summary>
     /// Orchestrator. Owns no geometry itself -- just references the probe, the target, and the
-    /// feedback controller, and drives the five-stage pipeline every frame:
+    /// feedback controller, and drives the per-frame pipeline:
     ///
-    ///   1. BvhBoundsTransformJob   - refresh probe node bounds into world space
-    ///   2. BroadPhaseTraversalJob  - dual-BVH descent -> candidate triangle pairs
-    ///   3. NarrowPhaseJob          - exact SAT + distance per candidate (parallel)
-    ///   4. ClearanceReduceJob      - reduce to one signed distance for the frame
-    ///   5. ClearanceFeedbackController.ApplyClearance - update the visual gradient
+    ///   1. BvhBoundsTransformJob       - refresh probe node bounds into world space
+    ///   2. BroadPhaseTraversalJob      - dual-BVH descent -> candidate triangle pairs
+    ///   3. NarrowPhaseJob              - exact SAT + distance per candidate (parallel)
+    ///   3b. ProbeTriangleClearanceJob  - scatter per-candidate distances into a per-triangle
+    ///                                    buffer for the highlight shader (runs alongside 4)
+    ///   4. ClearanceReduceJob          - reduce to one signed distance for the frame
+    ///   5. ClearanceFeedbackController.ApplyClearance - update the global color gradient,
+    ///      then ProbeBvh.UploadTriangleClearance() pushes the per-triangle buffer to the GPU
     ///
     /// This first version completes the whole job chain synchronously within Update() (a
     /// Complete() call at the end), matching the "discrete per-frame test is sufficient for
@@ -104,6 +107,10 @@ namespace CollisionCheck
             if (candidateCount == 0)
             {
                 _feedback.ApplyClearance(float.MaxValue);
+                // No candidates -- still need to age out last frame's highlighted triangles so
+                // they don't stay lit forever once the probe moves away.
+                RunTriangleClearanceJobWithNoCandidates();
+                _probe.UploadTriangleClearance();
                 return;
             }
 
@@ -120,6 +127,18 @@ namespace CollisionCheck
             };
             JobHandle narrowPhaseHandle = narrowPhaseJob.Schedule(candidateCount, 32);
 
+            // --- Stage 3b: scatter per-candidate distances into the per-triangle highlight
+            // buffer the probe's shader reads. Depends on narrow phase; independent of reduce. ---
+            var triangleClearanceJob = new ProbeTriangleClearanceJob
+            {
+                CandidatePairs = _candidatePairs.AsArray(),
+                SignedDistances = _signedDistances,
+                OriginalTriangleIndex = _probe.Tree.OriginalTriangleIndex,
+                TriangleClearance = _probe.TriangleClearance,
+                TouchedOriginalTriangles = _probe.TouchedOriginalTriangles
+            };
+            JobHandle triangleClearanceHandle = triangleClearanceJob.Schedule(narrowPhaseHandle);
+
             // --- Stage 4: reduce to a single worst-case signed distance ---
             var reduceJob = new ClearanceReduceJob
             {
@@ -128,10 +147,28 @@ namespace CollisionCheck
             };
             JobHandle reduceHandle = reduceJob.Schedule(narrowPhaseHandle);
 
-            reduceHandle.Complete();
+            JobHandle.CombineDependencies(reduceHandle, triangleClearanceHandle).Complete();
 
             // --- Stage 5: visual feedback ---
             _feedback.ApplyClearance(_minSignedDistance.Value);
+            _probe.UploadTriangleClearance();
+        }
+
+        /// <summary>When the broad phase finds zero overlapping node pairs, NarrowPhaseJob
+        /// never runs, so ProbeTriangleClearanceJob has to run standalone (no candidates to
+        /// scatter, just aging-out last frame's touched set) to keep the highlight buffer from
+        /// showing stale triangles after the probe has moved away.</summary>
+        private void RunTriangleClearanceJobWithNoCandidates()
+        {
+            var triangleClearanceJob = new ProbeTriangleClearanceJob
+            {
+                CandidatePairs = _candidatePairs.AsArray(), // length 0
+                SignedDistances = _signedDistances,
+                OriginalTriangleIndex = _probe.Tree.OriginalTriangleIndex,
+                TriangleClearance = _probe.TriangleClearance,
+                TouchedOriginalTriangles = _probe.TouchedOriginalTriangles
+            };
+            triangleClearanceJob.Schedule().Complete();
         }
 
         private void OnDestroy()

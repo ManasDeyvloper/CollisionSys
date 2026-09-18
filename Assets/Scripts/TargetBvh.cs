@@ -1,3 +1,4 @@
+using System;
 using Unity.Collections;
 using UnityEngine;
 
@@ -14,6 +15,11 @@ namespace CollisionCheck
     {
         public BvhTree Tree { get; private set; }
         public bool IsInitialized { get; private set; }
+
+        /// <summary>Fired once Initialize() finishes. Lets other scripts (e.g.
+        /// ClearanceFeedbackController) wait for the target to be ready rather than assuming
+        /// it exists at Awake() time -- meshes now arrive asynchronously via RuntimeMeshLoader.</summary>
+        public event Action Initialized;
 
         private NativeArray<Unity.Mathematics.float3> _worldVertices;
 
@@ -34,6 +40,8 @@ namespace CollisionCheck
 
             rawTriangles.Dispose();
             IsInitialized = true;
+
+            Initialized?.Invoke();
         }
 
         /// <summary>Vertex positions for a given triangle, for narrow-phase distance/SAT tests.</summary>
